@@ -1,0 +1,19 @@
+[project]
+name = "bit-brain"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=3.3.2",
+    "loguru>=0.7.3",
+    "tiktoken>=0.9.0",
+    "torch==2.5.1",
+]
+
+[tool.uv]
+index-url = "https://mirrors.aliyun.com/pypi/simple/"
+
+[tool.pip]
+index-url = "https://mirrors.aliyun.com/pypi/simple/"
+trusted-host = ["mirrors.aliyun.com"]
