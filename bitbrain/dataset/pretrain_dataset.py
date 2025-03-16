@@ -6,7 +6,7 @@ from loguru import logger
 
 
 class PretrainDataset(Dataset):
-    def __init__(self, max_lines=10000, block_size=512):
+    def __init__(self, max_lines=1000000000, block_size=512):
         self.enc = tiktoken.get_encoding("gpt2")
         self.block_size = block_size
         self.max_lines = max_lines

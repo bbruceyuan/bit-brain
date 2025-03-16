@@ -5,7 +5,7 @@ from bitbrain.dataset.pretrain_dataset import PretrainDataset
 from loguru import logger
 
 # train data
-train_dataset = PretrainDataset(max_lines=100)
+train_dataset = PretrainDataset()
 
 # split traindataset to train and val
 train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [0.9, 0.1])
