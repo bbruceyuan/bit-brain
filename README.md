@@ -4,13 +4,7 @@
 ## 运行
 - step0: 使用 python3.12 （可选）
 - step1: 首先安装 uv。见[链接](https://docs.astral.sh/uv/getting-started/installation/)
-- step2: 初始化虚拟环境
-```bash
-uv venv
-source .venv/bin/activate  # Linux/MacOS
-# 或
-.venv\Scripts\activate     # Windows
-```
+- step2: 初始化虚拟环境 `uv venv`
 - step3: `uv install`
 - **step4** run: `uv run python -m bitbrain.train.pretrain` 
 ```shell
