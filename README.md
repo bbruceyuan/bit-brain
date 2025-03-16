@@ -2,17 +2,17 @@
 最少使用 3090 即可训练自己的比特大脑🧠（进行中）. Train your own BitBrain with just an RTX 3090 minimum.(Stay tuned)
 
 ## 运行
-step0: 使用 python3.12 （可选）
-step1: 首先安装 uv。见[链接](https://docs.astral.sh/uv/getting-started/installation/)
-step2: 初始化虚拟环境
+- step0: 使用 python3.12 （可选）
+- step1: 首先安装 uv。见[链接](https://docs.astral.sh/uv/getting-started/installation/)
+- step2: 初始化虚拟环境
 ```bash
 uv venv
 source .venv/bin/activate  # Linux/MacOS
 # 或
 .venv\Scripts\activate     # Windows
 ```
-step3: `uv install`
-step4: `uv run python -m bitbrain.train.pretrain` 
+- step3: `uv install`
+- **step4** run: `uv run python -m bitbrain.train.pretrain` 
 ```shell
 # 以下仅仅是演示
 2025-03-16 10:06:35.098 | INFO     | __main__:<module>:23 - Total parameters: 120.116736 M
