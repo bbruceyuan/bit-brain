@@ -35,9 +35,9 @@ torch._inductor.config.triton.cudagraph_trees = False
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--model_id", type=str, default="/home/ytllm/.cache/modelscope/models/Qwen/Qwen3-0.6B", help="模型文件路径")
+parser.add_argument("--model_id", type=str, default="", help="模型文件路径")
 #! 训练数据集相关参数
-parser.add_argument("--data_path", type=str, default="/home/ytllm/.cache/modelscope/datasets/hh2395959141/chinese_fineweb_v2_486G", help="训练数据集路径")
+parser.add_argument("--data_path", type=str, default="", help="训练数据集路径")
 parser.add_argument("--num_epochs", type=int, default=1, help="训练轮数")
 parser.add_argument("--batch_size", type=int, default=3)
 parser.add_argument("--seq_len", type=int, default=2048, help="训练时使用的序列长度")
@@ -263,11 +263,6 @@ weight_decay = 0.1 # 你要求的权重衰减值
 # 当使用 DDP 时，原始模型被包装在 `model.module` 中。
 # 为了让代码同时兼容单卡和分布式训练，我们在这里获取原始模型。
 raw_model = model.module if is_distributed else model
-
-# 以下代码适配 Hugging Face 标准模型结构 (如 Qwen3)
-# 'non-hidden' 参数通常指词嵌入层(token embeddings)和最后的输出层(lm_head)。
-# 'hidden' 参数是模型主体的其余部分（即Transformer层）。
-# 我们通过识别参数名称来区分它们。
 
 # 收集所有参数
 all_params = list(raw_model.named_parameters())
