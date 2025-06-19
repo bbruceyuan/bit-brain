@@ -1,4 +1,6 @@
 import torch
+# 我们不再从 loguru 直接导入 logger，而是期望它作为参数传入
+# from loguru import logger 
 
 def get_gpu_peak_flops(logger):
     """
@@ -34,6 +36,7 @@ def get_gpu_peak_flops(logger):
 def estimate_model_flops(model, logger):
     """
     估算Transformer模型每个token的理论FLOPs
+    使用更精确的公式: 6 * N * (1 + s/(12*h) + V/(16*L*h))
     
     参数:
         model: 模型实例
@@ -42,16 +45,40 @@ def estimate_model_flops(model, logger):
     返回:
         每个token的理论FLOPs数值
     """
-    # 获取模型参数数量（DDP包装后需要访问module）
+    # 1. 获取模型参数数量
     if hasattr(model, 'module'):
+        # 处理DDP（DistributedDataParallel）包装的模型
         n_params = sum(p.numel() for p in model.module.parameters())
+        model_config = model.module.config
     else:
         n_params = sum(p.numel() for p in model.parameters())
-    
-    #! 模型计算量近似估算公式
-    flops_per_token = 6 * n_params
-    logger.info(f"估算的每个token的训练计算量 (FLOPs per token, based on 6 * n_params): {flops_per_token:.0f}")
-    
+        model_config = model.config
+
+    # 2. 尝试从模型配置中获取详细参数
+    try:
+        # s: 序列长度, 根据用户提供的值
+        s = 2048
+        # V: 词汇表大小
+        V = model_config.vocab_size
+        # L: 模型层数
+        L = model_config.num_hidden_layers
+        # h: 在此公式中, h 代表模型的隐藏层维度 (hidden_size), 而不是单个头的维度
+        h = model_config.hidden_size
+        
+        logger.info(f"使用详细公式计算FLOPs, 参数为: V={V}, L={L}, h(hidden_size)={h}, s={s}")
+        
+        # 3. 根据新公式计算每个token的FLOPs
+        # N 在这里是 n_params
+        # flops_per_token = 6 * n_params * (1 + s/(12*h) + V/(16*L*h))
+        flops_per_token = 6 * n_params * (1 + s / (12 * h) + V / (16 * L * h))
+        logger.info(f"估算的每个token的训练计算量 (FLOPs per token, based on detailed formula): {flops_per_token:.0f}")
+
+    except AttributeError as e:
+        # 如果无法从config中获取所需参数，则回退到简单估算
+        logger.warning(f"无法从模型配置中获取详细参数 ({e})。将使用 6 * n_params 近似计算FLOPs。")
+        flops_per_token = 6 * n_params
+        logger.info(f"估算的每个token的训练计算量 (FLOPs per token, based on 6 * n_params approximation): {flops_per_token:.0f}")
+
     return flops_per_token
 
 def calculate_mfu_distributed(tokens_processed, step_time, flops_per_token, single_gpu_peak_flops, world_size):
