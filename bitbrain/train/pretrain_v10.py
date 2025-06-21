@@ -47,7 +47,7 @@ parser.add_argument("--world_size", type=int, default=1, help="Number of process
 parser.add_argument("--master_addr", type=str, default="localhost", help="Master address for distributed training")
 parser.add_argument("--master_port", type=str, default="12355", help="Master port for distributed training")
 #! 添加模型保存相关参数
-parser.add_argument("--save_dir", type=str, default="./out_v2", help="用于保存在epoch中途的检查点的目录。默认: 'checkpoints_in_epoch'")
+parser.add_argument("--save_dir", type=str, default="./out", help="用于保存在epoch中途的检查点的目录。默认: 'checkpoints_in_epoch'")
 parser.add_argument("--save_interval", type=int, default=5000, help="每N个原始批次（dataloader的批次）保存一次检查点。默认: 1000。如果为0，则禁用epoch中途保存。")
 parser.add_argument("--resume_from_checkpoint", type=str, default=None, help="从指定的检查点文件路径恢复训练。默认：None")
 parser.add_argument("--swanlab_id", type=str, default=None, help="SwanLab实验ID。默认：None")
@@ -355,9 +355,8 @@ if rank == 0:
         "gpu_count": world_size,
     }
     swanlab_run = swanlab.init(
-        id=args.swanlab_id, # 使用恢复的ID
         # 设置项目名称
-        project="bitbrain-pretrain_v2_4090",
+        project="bitbrain-pretrain",
         # 设置实验名称（可选）
         experiment_name=f"bitbrain-pretrain-{time.strftime('%Y%m%d_%H%M%S')}",
         # 记录超参数和实验配置
