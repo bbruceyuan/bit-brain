@@ -21,17 +21,17 @@ FORCE_TORCHRUN=1 CUDA_VISIBLE_DEVICES=4,5,6,7  torchrun --nproc_per_node 4 $LLaM
     --model_name_or_path "预训练模型路径" \
     --cutoff_len 2048 \
     --dataset_dir "数据集路径" \
-    --dataset baai_instruct_70W,baai_instruct_682W,openhermes_custom,deepctl_200W,wanjuan_exam_399W,code_feedback_custom\
+    --dataset shared_gpt_format\
     --overwrite_cache \
     --max_samples 5000000 \
     --packing True \
     --use_swanlab true \
     --report_to swanlab \
-    --run_name sft_bit-brain-v1-mix \
+    --run_name sft_bit-brain \
     --preprocessing_num_workers 30 \
     --template qwen \
     --finetuning_type full \
-    --output_dir ${OUTPUT_DIR}/bit-brain-v1-full-sft \
+    --output_dir ${OUTPUT_DIR}/sft \
     --overwrite_output_dir \
     --per_device_train_batch_size 16 \
     --per_device_eval_batch_size 4 \
