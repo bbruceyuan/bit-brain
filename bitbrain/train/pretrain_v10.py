@@ -1,5 +1,6 @@
-#!  在v7的基础上，进一步使用Muon优化器降低峰值显存占用
+#
 #!  在v9的基础上，进一步添加断点续训，且跳过已训练的数据批次
+#!  在v10的基础上，进一步将学习率调度器换成WSD，并添加grad_norm监控
 #*  默认使用混合精度，并启动 torch.compile加速
 import os
 import sys
@@ -17,14 +18,14 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler  
 from torch.amp import GradScaler, autocast  
 from modelscope import AutoConfig, AutoTokenizer
-from bitbrain.dataset.pretrain_dataset_arrow import PretrainDataset
+from bitbrain.dataset.pretrain_dataset import HFLoadedDataset
 from transformers import get_cosine_schedule_with_warmup
 from loguru import logger
 #! 从新的 mfu.py 文件导入 MFU 相关函数
 from bitbrain.train.tools.mfu import get_gpu_peak_flops, estimate_model_flops, calculate_mfu_distributed
 from bitbrain.train.tools.utils import test_model_on_prompts
 from liger_kernel.transformers import AutoLigerKernelForCausalLM
-from datasets import load_from_disk
+from datasets import load_from_disk, concatenate_datasets
 import swanlab
 from muon import MuonWithAuxAdam
 import numpy as np
@@ -39,7 +40,7 @@ parser.add_argument("--model_id", type=str, default="", help="模型文件路径
 #! 训练数据集相关参数
 parser.add_argument("--data_path", type=str, default="", help="训练数据集路径")
 parser.add_argument("--num_epochs", type=int, default=1, help="训练轮数")
-parser.add_argument("--batch_size", type=int, default=3)
+parser.add_argument("--batch_size", type=int, default=12)
 parser.add_argument("--seq_len", type=int, default=2048, help="训练时使用的序列长度")
 #! 添加分布式训练相关参数
 parser.add_argument("--local_rank", type=int, default=-1, help="Local rank for distributed training")
@@ -47,8 +48,8 @@ parser.add_argument("--world_size", type=int, default=1, help="Number of process
 parser.add_argument("--master_addr", type=str, default="localhost", help="Master address for distributed training")
 parser.add_argument("--master_port", type=str, default="12355", help="Master port for distributed training")
 #! 添加模型保存相关参数
-parser.add_argument("--save_dir", type=str, default="./out", help="用于保存在epoch中途的检查点的目录。默认: 'checkpoints_in_epoch'")
-parser.add_argument("--save_interval", type=int, default=5000, help="每N个原始批次（dataloader的批次）保存一次检查点。默认: 1000。如果为0，则禁用epoch中途保存。")
+parser.add_argument("--save_dir", type=str, default="./out_v3", help="用于保存在epoch中途的检查点的目录。默认: 'checkpoints_in_epoch'")
+parser.add_argument("--save_interval", type=int, default=10000, help="每N个原始批次（dataloader的批次）保存一次检查点。默认: 1000。如果为0，则禁用epoch中途保存。")
 parser.add_argument("--resume_from_checkpoint", type=str, default=None, help="从指定的检查点文件路径恢复训练。默认：None")
 parser.add_argument("--swanlab_id", type=str, default=None, help="SwanLab实验ID。默认：None")
 args = parser.parse_args()
@@ -130,43 +131,7 @@ model = AutoLigerKernelForCausalLM.from_config(config=qwen_config,trust_remote_c
 logger.info(f"New model initialized successfully with random weights based on {args.model_id} configuration.")
 
 
-#!  使用set_format设置为pytorch兼容的格式
-class HFLoadedDataset(Dataset):
-    """一个包装类，用于处理从磁盘加载的Hugging Face数据集（优化版）"""
-    def __init__(self, data_path, tokenizer):
-        super().__init__()
-        logger.info(f"Loading pre-tokenized dataset from {data_path}...")
-        self.hf_dataset = load_from_disk(data_path)
-        self.tokenizer = tokenizer
-        
-        # 关键优化：在这里一次性设置输出格式为 PyTorch 张量
-        self.hf_dataset.set_format(
-            type='torch', 
-            columns=['input_ids', 'attention_mask']
-        )
-        
-        logger.info("Dataset loaded and formatted for PyTorch successfully.")
-        logger.info(f"Dataset size: {len(self.hf_dataset)}")
-
-    def __len__(self):
-        return len(self.hf_dataset)
-
-    def __getitem__(self, idx):
-        # 现在 hf_dataset[idx] 会直接返回 PyTorch 张量，无需手动转换
-        item = self.hf_dataset[idx]
-        
-        # input_ids 和 attention_mask 已经是 torch.Tensor 了
-        input_ids = item['input_ids']
-        attention_mask = item['attention_mask']
-        
-        # 创建 labels
-        labels = input_ids.clone()
-        labels[labels == self.tokenizer.pad_token_id] = -100
-        
-        return input_ids, labels, attention_mask
-
-#! (3) 加载数据类
-#train_dataset = PretrainDataset(data_path=args.data_path)   
+#! (3) 加载数据类 
 train_dataset = HFLoadedDataset(
     data_path=args.data_path,
     tokenizer=tokenizer
@@ -191,7 +156,7 @@ else:
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, seed=seed, drop_last=True)
 
 #* 训练配置参数
-gradient_accumulation_steps = 16  # 梯度累计步数，实际batch_size = batch_size * gradient_accumulation_steps
+gradient_accumulation_steps = 8  # 梯度累计步数，实际batch_size = batch_size * gradient_accumulation_steps
 
 mixed_precision_dtype = torch.bfloat16  # 或者 torch.float16，根据需要配置
 compile_mode = "default"  # 编译模式：'default', 'reduce-overhead', 'max-autotune'
@@ -250,11 +215,41 @@ single_gpu_peak_flops = get_gpu_peak_flops(logger)
 total_tokens_processed = 0
 total_training_time = 0
 
+def get_wsd_lr(step, peak_lr, min_lr, warmup_steps, decay_start_step, decay_steps):
+    """
+    获取WSD（Warmup-Stable-Decay）调度策略的学习率。
+    """
+    if step < warmup_steps:
+        # 阶段1: 预热 (Warmup)
+        # 学习率从0线性增加到 peak_lr
+        # 为了避免 step=0 时 lr=0，我们使用 step + 1
+        return peak_lr * (step + 1) / warmup_steps
+    elif step < decay_start_step:
+        # 阶段2: 稳定 (Stable)
+        # 学习率保持在 peak_lr
+        return peak_lr
+    else:
+        # 阶段3: 衰减 (Decay)
+        # 确保 decay_steps > 0 避免除以零
+        if decay_steps <= 0:
+            return min_lr
+        
+        # 学习率从 peak_lr 线性衰减到 min_lr
+        progress = (step - decay_start_step) / decay_steps
+        # 确保 progress 在 [0, 1] 范围内
+        progress = min(1.0, max(0.0, progress))
+
+        decayed_lr = peak_lr - (peak_lr - min_lr) * progress
+        return decayed_lr
+
 # 在优化器配置部分添加学习率调度相关参数
 lr_scheduler_config = {
-    "scheduler_type": "cosine",              # 调度器类型: 不带预热的余弦退火
-    "max_lr": 2e-4,                          # 最大学习率
-    "min_lr": 2e-5,                          # 最小学习率（最大学习率的10%）
+    "scheduler_type": "wsd",
+    "peak_lr": 3.0e-4,
+    "min_lr": 3.0e-5,
+    "warmup_steps": 20000,
+    "decay_steps": 60000,
+    "total_steps": 288630
 }
 #! 添加权重衰减参数
 weight_decay = 0.1 # 你要求的权重衰减值
@@ -291,26 +286,44 @@ param_groups = [
          lr=0.02, weight_decay=0.01),
     # 第二组：嵌入、输出层、以及模型主体的增益和偏置，使用 AdamW 优化
     dict(params=hidden_gains_biases + nonhidden_params, use_muon=False,
-         lr=3e-4, betas=(0.9, 0.95), weight_decay=0.01),
+         lr=lr_scheduler_config["peak_lr"], betas=(0.9, 0.95), weight_decay=0.01),
 ]
 optimizer = MuonWithAuxAdam(param_groups)
 
 # 动态计算总训练步数
 steps_per_epoch = len(train_loader) // gradient_accumulation_steps
-total_training_steps = steps_per_epoch 
+total_training_steps = steps_per_epoch * args.num_epochs # 乘以epoch数以得到总步数
 
-logger.info(f"学习率调度配置:")
+logger.info(f"学习率调度配置 (WSD):")
 logger.info(f"  - 调度器类型: {lr_scheduler_config['scheduler_type']}")
-logger.info(f"  - 最大学习率: {lr_scheduler_config['max_lr']}")
-logger.info(f"  - 最小学习率: {lr_scheduler_config['min_lr']}")
-logger.info(f"  - 总训练步数: {total_training_steps}")
+logger.info(f"  - 峰值学习率 (Peak LR): {lr_scheduler_config['peak_lr']}")
+logger.info(f"  - 最小学习率 (Min LR): {lr_scheduler_config['min_lr']}")
+logger.info(f"  - 预热步数 (Warmup Steps): {lr_scheduler_config['warmup_steps']}")
+logger.info(f"  - 衰减步数 (Decay Steps): {lr_scheduler_config['decay_steps']}")
+logger.info(f"  - 总步数 (Total Steps): {lr_scheduler_config['total_steps']}")
+logger.info(f"  - 根据数据集计算出的总训练步数 (for reference): {total_training_steps}")
 logger.info(f"  - 每轮步数: {steps_per_epoch}")
 
-# 使用 PyTorch 内置的余弦退火调度器
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+# 为WSD调度器定义lambda函数
+decay_start_step = lr_scheduler_config["total_steps"] - lr_scheduler_config["decay_steps"]
+
+# AdamW参数组的lambda (第2组), lr从0预热到peak_lr, 稳定，然后衰减到min_lr
+wsd_lambda = lambda step: get_wsd_lr(
+    step=step,
+    peak_lr=lr_scheduler_config["peak_lr"],
+    min_lr=lr_scheduler_config["min_lr"],
+    warmup_steps=lr_scheduler_config["warmup_steps"],
+    decay_start_step=decay_start_step,
+    decay_steps=lr_scheduler_config["decay_steps"]
+) / lr_scheduler_config["peak_lr"] # 返回相对于峰值LR的比例因子，因为LambdaLR是乘法式的
+
+# Muon参数组的lambda (第1组)，保持学习率不变
+constant_lambda = lambda step: 1.0
+
+# 创建LambdaLR调度器，为不同参数组应用不同规则
+scheduler = torch.optim.lr_scheduler.LambdaLR(
     optimizer,
-    T_max=total_training_steps,
-    eta_min=lr_scheduler_config["min_lr"]
+    lr_lambda=[constant_lambda, wsd_lambda]
 )
 
 #! 在设置完分布式训练环境后，初始化SwanLab（只在主进程）
@@ -333,9 +346,12 @@ if rank == 0:
         "num_epochs": args.num_epochs, # 使用提前定义的 num_epochs
         
         # 学习率调度相关参数
-        "learning_rate_max": lr_scheduler_config["max_lr"],
+        "learning_rate_peak": lr_scheduler_config["peak_lr"],
         "learning_rate_min": lr_scheduler_config["min_lr"],
         "scheduler_type": lr_scheduler_config["scheduler_type"],
+        "warmup_steps": lr_scheduler_config["warmup_steps"],
+        "decay_steps": lr_scheduler_config["decay_steps"],
+        "total_scheduler_steps": lr_scheduler_config["total_steps"],
         "total_training_steps": total_training_steps,
         "steps_per_epoch": steps_per_epoch,
         "weight_decay": weight_decay,
@@ -355,10 +371,14 @@ if rank == 0:
         "gpu_count": world_size,
     }
     swanlab_run = swanlab.init(
+        id=args.swanlab_id, # 使用恢复的ID
+        
+        resume = "must",
         # 设置项目名称
-        project="bitbrain-pretrain",
+        project="bitbrain-pretrain_v3",
         # 设置实验名称（可选）
-        experiment_name=f"bitbrain-pretrain-{time.strftime('%Y%m%d_%H%M%S')}",
+        #experiment_name=f"bitbrain-pretrain-{time.strftime('%Y%m%d_%H%M%S')}",
+        experiment_name="bitbrain-pretrain-20250614_183028",
         # 记录超参数和实验配置
         config=swanlab_config,
         # 添加实验描述
@@ -488,6 +508,9 @@ def train(model, optimizer, scheduler, train_loader, device,
         accumulated_loss += loss.item()
         
         if (batch_idx + 1) % gradient_accumulation_steps == 0:
+            # 声明 total_norm，确保它在 if/else 作用域外可用，并初始化
+            total_norm = torch.tensor(0.0, device=device)
+
             if scaler is not None: # float16
                 scaler.unscale_(optimizer)
                 total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -497,7 +520,7 @@ def train(model, optimizer, scheduler, train_loader, device,
                     logger.warning(f"Skipping optimizer step at epoch {epoch}, batch_idx {batch_idx} due to non-finite gradients (norm: {total_norm}).")
                 scaler.update() # 无论是否跳过step，都需要update scaler
             else: # bfloat16 (或未使用scaler)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
             
             optimizer.zero_grad()
@@ -535,6 +558,7 @@ def train(model, optimizer, scheduler, train_loader, device,
                         f'Epoch:[{epoch+1}/{args.num_epochs}]', # epoch is 0-based from loop, +1 for display
                         f'Step:[{current_optimizer_step_in_epoch}/{num_optimizer_steps_per_epoch}]',
                         f'Loss:{accumulated_loss:.4f}', # This is loss for one optimization step
+                        f'GradNorm:{total_norm.item():.4f}', #! 添加梯度范数监控
                         f'LR:{current_lr:.8f}',
                         f'Tokens/s (Global):{tokens_per_sec_global:.0f}',
                         f'StepTime:{step_time:.3f}s',
@@ -554,6 +578,7 @@ def train(model, optimizer, scheduler, train_loader, device,
                             # 训练指标
                             "train/loss": accumulated_loss,
                             "train/learning_rate": current_lr,
+                            "train/grad_norm": total_norm.item(), #! 添加梯度范数到SwanLab
                             "train/epoch": epoch + 1,
                             "train/step": current_optimizer_step_in_epoch,
                             "train/global_step": global_step,
