@@ -109,7 +109,7 @@ $$
 | 评测方式 (Method) | 平均分 (Average Score) |
 | :--- | :--- |
 | **C-Eval-PPL** | **28.20%** |
-| **C-Eval-GEN** | **20.10%** |
+| **C-Eval-GEN** | **20.10%** （略去了分数为0的两项）|
 
 <details>
 <summary>点击查看 C-Eval-PPL 各科详细得分 (平均分: 28.20%)</summary>
@@ -172,7 +172,7 @@ $$
 </details>
 
 <details>
-<summary>点击查看 C-Eval-GEN 各科详细得分 (平均分: 20.10%)</summary>
+<summary>点击查看 C-Eval-GEN 各科详细得分 (平均分: 20.10%)（略去了分数为0的两项）</summary>
 
 | 数据集 (Dataset) | 准确率 (Accuracy) |
 | :--- | :--- |
