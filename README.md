@@ -6,7 +6,7 @@
 
 最少使用 3090 即可训练自己的比特大脑🧠（进行中）. Train your own BitBrain with just an RTX 3090 minimum.(Stay tuned)
 
-`Bitbrain-0.6B-base` 是一个基于 `Qwen3-0.6B` 架构的语言模型。我们在大约 `113B` tokens 的高质量中英文数据上对其进行了预训练。
+`Bitbrain-0.6B-base` 是一个基于 `Qwen3-0.6B` 架构的语言模型。我们在大约 `200B` tokens 的高质量中英文数据上对其进行了预训练。
 
 ## 数据与模型
 
@@ -14,7 +14,7 @@
 
 | 预训练权重 | 训练数据 | 部分细节 | 模型下载链接 |
 | :--- | :--- | :--- | :--- |
-| Bitbrain-0.6B-base | **预训练数据集**:chinese-fineweb-edu-v2<br/>**中英文比例**  3:1（参考原数据集）<br/>**总训练 Token 数** 约 113B  | **在 4 * H800 GPU 上**: MFU 达到了 **46%**。<br/>**在 8 * 4090 GPU 上**: MFU 达到了 **34%**。 <br/>使用了 liger kernel, muon 优化器 | [modelscope链接](https://www.modelscope.cn/models/hh2395959141/Bitbrain-0.6b-base/) |
+| Bitbrain-0.6B-base | **预训练数据集**:chinese-fineweb-edu-v2<br/>**中英文比例**  3:1（参考原数据集）<br/>**总训练 Token 数** 约 200B  | **在 4 * H800 GPU 上**: MFU 达到了 **46%**。<br/>**在 8 * 4090 GPU 上**: MFU 达到了 **34%**。 <br/>使用了 liger kernel, muon 优化器 | [modelscope链接](https://www.modelscope.cn/models/hh2395959141/Bitbrain-0.6b-base/) |
 | Bitbrain-0.6B-instruct | todo  | todo | todo |
 
 
@@ -23,7 +23,7 @@
 | 模型 | 评测方式 | 平均分 |
 | :--- | :--- | :--- |
 | Bitbrain-0.6B-base | C-Eval-PPL | 27.99% |
-| Bitbrain-0.6B-base | C-Eval-GEN | 20.30% |
+| Bitbrain-0.6B-base | C-Eval-GEN | 20.10% |
 
 ## 环境安装
 - step0: 使用 python3.12 （可选）
@@ -79,11 +79,11 @@ print(response)
 *   **优化器 (Optimizer)**: 使用 `Muon` 优化器，进一步减少了优化器状态的显存占用
 *   **性能加速 (Performance Acceleration)**:
     *   使用 `torch.compile` 对模型进行编译优化加速。
-    *   使用 `liger kernel` 进行关键运算加速。
+    *   使用 `liger kernel` 进一步降低显存开销。
 
 ## 性能 (Performance)
 
-通过上述优化，我们实现了高效的训练。我们使用模型浮点运算利用率 (Model Flops Utilization, MFU) 来衡量硬件的有效利用程度。MFU 的计算方式参考了 `deepseek-LLM` 论文中提出的**非嵌入FLOPs**方法，具体公式如下：
+通过上述优化，我们实现了高效的训练。我们使用模型浮点运算利用率 (Model Flops Utilization, MFU) 来衡量硬件的有效利用程度。MFU 的计算方式参考了快手技术博客中给出的公式，具体如下：
 
 $$
 MFU = \frac{\text{有效计算量}}{\text{训练时间} \times \text{理论算力}} = \frac{6ND(1+\frac{s}{12h}+\frac{V}{16Lh})}{\text{训练时间} \times \text{理论算力}}
@@ -108,126 +108,126 @@ $$
 
 | 评测方式 (Method) | 平均分 (Average Score) |
 | :--- | :--- |
-| **C-Eval-PPL** | **27.99%** |
-| **C-Eval-GEN** | **20.30%** |
+| **C-Eval-PPL** | **28.20%** |
+| **C-Eval-GEN** | **20.10%** |
 
 <details>
-<summary>点击查看 C-Eval-PPL 各科详细得分 (平均分: 27.99%)</summary>
+<summary>点击查看 C-Eval-PPL 各科详细得分 (平均分: 28.20%)</summary>
 
 | 数据集 (Dataset) | 准确率 (Accuracy) |
 | :--- | :--- |
-| ceval-computer_network | 52.63 |
-| ceval-operating_system | 10.53 |
+| ceval-computer_network | 31.58 |
+| ceval-operating_system | 15.79 |
 | ceval-computer_architecture | 14.29 |
-| ceval-college_programming | 18.92 |
-| ceval-college_physics | 47.37 |
-| ceval-college_chemistry | 25.00 |
+| ceval-college_programming | 29.73 |
+| ceval-college_physics | 36.84 |
+| ceval-college_chemistry | 16.67 |
 | ceval-advanced_mathematics | 10.53 |
-| ceval-probability_and_statistics | 44.44 |
-| ceval-discrete_mathematics | 12.50 |
-| ceval-electrical_engineer | 21.62 |
+| ceval-probability_and_statistics | 38.89 |
+| ceval-discrete_mathematics | 31.25 |
+| ceval-electrical_engineer | 24.32 |
 | ceval-metrology_engineer | 33.33 |
-| ceval-high_school_mathematics | 44.44 |
-| ceval-high_school_physics | 15.79 |
-| ceval-high_school_chemistry | 21.05 |
-| ceval-high_school_biology | 26.32 |
+| ceval-high_school_mathematics | 22.22 |
+| ceval-high_school_physics | 26.32 |
+| ceval-high_school_chemistry | 15.79 |
+| ceval-high_school_biology | 10.53 |
 | ceval-middle_school_mathematics | 26.32 |
 | ceval-middle_school_biology | 28.57 |
-| ceval-middle_school_physics | 36.84 |
-| ceval-middle_school_chemistry | 20.00 |
-| ceval-veterinary_medicine | 26.09 |
-| ceval-college_economics | 27.27 |
-| ceval-business_administration | 27.27 |
+| ceval-middle_school_physics | 47.37 |
+| ceval-middle_school_chemistry | 30.00 |
+| ceval-veterinary_medicine | 17.39 |
+| ceval-college_economics | 21.82 |
+| ceval-business_administration | 18.18 |
 | ceval-marxism | 36.84 |
-| ceval-mao_zedong_thought | 33.33 |
-| ceval-education_science | 10.34 |
-| ceval-teacher_qualification | 22.73 |
-| ceval-high_school_politics | 63.16 |
-| ceval-high_school_geography | 36.84 |
-| ceval-middle_school_politics | 28.57 |
+| ceval-mao_zedong_thought | 29.17 |
+| ceval-education_science | 17.24 |
+| ceval-teacher_qualification | 20.45 |
+| ceval-high_school_politics | 36.84 |
+| ceval-high_school_geography | 21.05 |
+| ceval-middle_school_politics | 38.10 |
 | ceval-middle_school_geography | 33.33 |
-| ceval-modern_chinese_history | 21.74 |
-| ceval-ideological_and_moral_cultivation | 31.58 |
-| ceval-logic | 31.82 |
+| ceval-modern_chinese_history | 30.43 |
+| ceval-ideological_and_moral_cultivation | 36.84 |
+| ceval-logic | 9.09 |
 | ceval-law | 20.83 |
-| ceval-chinese_language_and_literature | 17.39 |
-| ceval-art_studies | 12.12 |
-| ceval-professional_tour_guide | 13.79 |
-| ceval-legal_professional | 43.48 |
-| ceval-high_school_chinese | 15.79 |
-| ceval-high_school_history | 15.00 |
+| ceval-chinese_language_and_literature | 34.78 |
+| ceval-art_studies | 36.36 |
+| ceval-professional_tour_guide | 37.93 |
+| ceval-legal_professional | 8.70 |
+| ceval-high_school_chinese | 21.05 |
+| ceval-high_school_history | 25.00 |
 | ceval-middle_school_history | 22.73 |
-| ceval-civil_servant | 25.53 |
-| ceval-sports_science | 42.11 |
-| ceval-plant_protection | 22.73 |
-| ceval-basic_medicine | 42.11 |
-| ceval-clinical_medicine | 40.91 |
-| ceval-urban_and_rural_planner | 26.09 |
-| ceval-accountant | 32.65 |
-| ceval-fire_engineer | 35.48 |
-| ceval-environmental_impact_assessment_engineer | 22.58 |
+| ceval-civil_servant | 27.66 |
+| ceval-sports_science | 52.63 |
+| ceval-plant_protection | 27.27 |
+| ceval-basic_medicine | 26.32 |
+| ceval-clinical_medicine | 22.73 |
+| ceval-urban_and_rural_planner | 32.61 |
+| ceval-accountant | 36.73 |
+| ceval-fire_engineer | 25.81 |
+| ceval-environmental_impact_assessment_engineer | 19.35 |
 | ceval-tax_accountant | 36.73 |
-| ceval-physician | 26.53 |
+| ceval-physician | 24.49 |
 
 </details>
 
 <details>
-<summary>点击查看 C-Eval-GEN 各科详细得分 (平均分: 20.30%)</summary>
+<summary>点击查看 C-Eval-GEN 各科详细得分 (平均分: 20.10%)</summary>
 
 | 数据集 (Dataset) | 准确率 (Accuracy) |
 | :--- | :--- |
-| ceval-computer_network | 0.00 |
-| ceval-operating_system | 5.26 |
-| ceval-computer_architecture | 19.05 |
-| ceval-college_programming | 18.92 |
-| ceval-college_physics | 5.26 |
-| ceval-college_chemistry | 16.67 |
-| ceval-advanced_mathematics | 31.58 |
-| ceval-probability_and_statistics | 0.00 |
-| ceval-discrete_mathematics | 0.00 |
-| ceval-electrical_engineer | 16.22 |
-| ceval-metrology_engineer | 16.67 |
+| ceval-computer_network | 5.26 |
+| ceval-operating_system | 0.00 |
+| ceval-computer_architecture | 28.57 |
+| ceval-college_programming | 29.73 |
+| ceval-college_physics | 15.79 |
+| ceval-college_chemistry | 20.83 |
+| ceval-advanced_mathematics | 10.53 |
+| ceval-probability_and_statistics | 5.56 |
+| ceval-discrete_mathematics | 6.25 |
+| ceval-electrical_engineer | 13.51 |
+| ceval-metrology_engineer | 20.83 |
 | ceval-high_school_mathematics | 22.22 |
-| ceval-high_school_physics | 26.32 |
-| ceval-high_school_chemistry | 15.79 |
-| ceval-high_school_biology | 36.84 |
-| ceval-middle_school_mathematics | 10.53 |
+| ceval-high_school_physics | 36.84 |
+| ceval-high_school_chemistry | 26.32 |
+| ceval-high_school_biology | 26.32 |
+| ceval-middle_school_mathematics | 31.58 |
 | ceval-middle_school_biology | 19.05 |
-| ceval-middle_school_physics | 21.05 |
-| ceval-middle_school_chemistry | 15.00 |
-| ceval-veterinary_medicine | 26.09 |
-| ceval-college_economics | 10.91 |
-| ceval-business_administration | 18.18 |
-| ceval-marxism | 21.05 |
-| ceval-mao_zedong_thought | 29.17 |
-| ceval-education_science | 24.14 |
-| ceval-teacher_qualification | 27.27 |
+| ceval-middle_school_physics | 52.63 |
+| ceval-middle_school_chemistry | 20.00 |
+| ceval-veterinary_medicine | 30.43 |
+| ceval-college_economics | 23.64 |
+| ceval-business_administration | 15.15 |
+| ceval-marxism | 36.84 |
+| ceval-mao_zedong_thought | 12.50 |
+| ceval-education_science | 34.48 |
+| ceval-teacher_qualification | 11.36 |
 | ceval-high_school_politics | 0.00 |
 | ceval-high_school_geography | 21.05 |
-| ceval-middle_school_politics | 23.81 |
-| ceval-middle_school_geography | 8.33 |
+| ceval-middle_school_politics | 19.05 |
+| ceval-middle_school_geography | 16.67 |
 | ceval-modern_chinese_history | 17.39 |
-| ceval-ideological_and_moral_cultivation | 21.05 |
-| ceval-logic | 13.64 |
+| ceval-ideological_and_moral_cultivation | 31.58 |
+| ceval-logic | 9.09 |
 | ceval-law | 20.83 |
-| ceval-chinese_language_and_literature | 21.74 |
-| ceval-art_studies | 39.39 |
-| ceval-professional_tour_guide | 31.03 |
-| ceval-legal_professional | 4.35 |
-| ceval-high_school_chinese | 26.32 |
+| ceval-chinese_language_and_literature | 30.43 |
+| ceval-art_studies | 21.21 |
+| ceval-professional_tour_guide | 17.24 |
+| ceval-legal_professional | 13.04 |
+| ceval-high_school_chinese | 15.79 |
 | ceval-high_school_history | 30.00 |
-| ceval-middle_school_history | 18.18 |
-| ceval-civil_servant | 10.64 |
-| ceval-sports_science | 10.53 |
-| ceval-plant_protection | 31.82 |
-| ceval-basic_medicine | 0.00 |
-| ceval-clinical_medicine | 18.18 |
-| ceval-urban_and_rural_planner | 19.57 |
-| ceval-accountant | 22.45 |
-| ceval-fire_engineer | 25.81 |
-| ceval-environmental_impact_assessment_engineer | 9.68 |
-| ceval-tax_accountant | 32.65 |
-| ceval-physician | 22.45 |
+| ceval-middle_school_history | 22.73 |
+| ceval-civil_servant | 21.28 |
+| ceval-sports_science | 15.79 |
+| ceval-plant_protection | 18.18 |
+| ceval-basic_medicine | 15.79 |
+| ceval-clinical_medicine | 22.73 |
+| ceval-urban_and_rural_planner | 21.74 |
+| ceval-accountant | 26.53 |
+| ceval-fire_engineer | 29.03 |
+| ceval-environmental_impact_assessment_engineer | 16.13 |
+| ceval-tax_accountant | 20.41 |
+| ceval-physician | 18.37 |
 
 </details>
 
