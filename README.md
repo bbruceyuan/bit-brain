@@ -1,11 +1,29 @@
 <p align="center">
-<h1 align="center">《🧠 BitBrain - Train Your Own tiny-LLM》</h1>
+<h1 align="center">🧠 BitBrain - Train Your Own tiny-LLM</h1>
 <h4 align="right">迈出自己训练 LLM 的关键一步～ Let's just take action!</h4>
 </p>
 
-# 🧠BitBrain
-`Bitbrain-0.6B-base` 是一个基于 `Qwen3-0.6B` 架构的语言模型。我们在大约 113B tokens 的高质量中英文数据上对其进行了预训练。
-> 最少使用 3090 即可训练自己的比特大脑🧠（进行中）. Train your own BitBrain with just an RTX 3090 minimum.(Stay tuned)
+
+最少使用 3090 即可训练自己的比特大脑🧠（进行中）. Train your own BitBrain with just an RTX 3090 minimum.(Stay tuned)
+
+`Bitbrain-0.6B-base` 是一个基于 `Qwen3-0.6B` 架构的语言模型。我们在大约 `113B` tokens 的高质量中英文数据上对其进行了预训练。
+
+## 数据与模型
+
+
+
+| 预训练权重 | 训练数据 | 部分细节 | 模型下载链接 |
+| :--- | :--- | :--- | :--- |
+| Bitbrain-0.6B-base | **预训练数据集**:chinese-fineweb-edu-v2<br/>**中英文比例**  3:1（参考原数据集）<br/>**总训练 Token 数** 约 113B  | **在 4 * H800 GPU 上**: MFU 达到了 **46%**。<br/>**在 8 * 4090 GPU 上**: MFU 达到了 **34%**。 <br/>使用了 liger kernel, muon 优化器 | [modelscope链接](https://www.modelscope.cn/models/hh2395959141/Bitbrain-0.6b-base/) |
+| Bitbrain-0.6B-instruct | todo  | todo | todo |
+
+
+### C-Eval 评测结果
+
+| 模型 | 评测方式 | 平均分 |
+| :--- | :--- | :--- |
+| Bitbrain-0.6B-base | C-Eval-PPL | 27.99% |
+| Bitbrain-0.6B-base | C-Eval-GEN | 20.30% |
 
 ## 环境安装
 - step0: 使用 python3.12 （可选）
