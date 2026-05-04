@@ -3,6 +3,8 @@
 <h4 align="right">迈出自己训练 LLM 的关键一步～ Let's just take action!</h4>
 </p>
 
+[![ApeCode.ai](https://img.shields.io/badge/🦧_ApeCode.ai-AI_Tools_&_Learning-orange?style=flat-square)](https://apecode.ai/zh) [![ApeRouter](https://img.shields.io/badge/🔗_ApeRouter-LLM_API_Proxy-blue?style=flat-square)](https://apecode.ai/zh/products/aperouter)
+
 
 最少使用 3090 即可训练自己的比特大脑🧠（进行中）. Train your own BitBrain with just an RTX 3090 minimum.(Stay tuned)
 
